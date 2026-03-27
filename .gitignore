@@ -27,4 +27,4 @@ logs/
 postgres_data/
 
 # Airflow
-airflow/config/
+airflow/logs/

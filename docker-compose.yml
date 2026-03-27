@@ -85,7 +85,7 @@ services:
         condition: service_completed_successfully
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v2/version || exit 1"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/version')\""]
       interval: 10s
       timeout: 10s
       retries: 5

@@ -10,6 +10,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -27,7 +28,7 @@ class SiteControllerTest {
     private SiteService siteService;
 
     @Test
-    void listSites_returnsJson() throws Exception {
+    void listSites_returnsWrappedJson() throws Exception {
         Site site = new Site();
         site.setSiteId("SITE_TPE_01");
         site.setSiteName("台北工廠A");
@@ -36,12 +37,24 @@ class SiteControllerTest {
 
         mockMvc.perform(get("/api/sites"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].siteId", is("SITE_TPE_01")));
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.message", is("success")))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].siteId", is("SITE_TPE_01")));
     }
 
     @Test
-    void getSite_returnsDetail() throws Exception {
+    void listSites_empty_returnsEmptyArray() throws Exception {
+        when(siteService.getAllSites()).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/api/sites"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
+    @Test
+    void getSite_found() throws Exception {
         Site site = new Site();
         site.setSiteId("SITE_TPE_01");
         site.setCapacityKw(new BigDecimal("500.00"));
@@ -49,12 +62,23 @@ class SiteControllerTest {
 
         mockMvc.perform(get("/api/sites/SITE_TPE_01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.siteId", is("SITE_TPE_01")))
-                .andExpect(jsonPath("$.capacityKw", is(500.00)));
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data.siteId", is("SITE_TPE_01")))
+                .andExpect(jsonPath("$.data.capacityKw", is(500.00)));
     }
 
     @Test
-    void listDevices_returnsDevices() throws Exception {
+    void getSite_notFound_returns404() throws Exception {
+        when(siteService.getSiteById("NONEXISTENT")).thenReturn(null);
+
+        mockMvc.perform(get("/api/sites/NONEXISTENT"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is(404)))
+                .andExpect(jsonPath("$.message", is("Site not found: NONEXISTENT")));
+    }
+
+    @Test
+    void listDevices_returnsWrappedDevices() throws Exception {
         Device device = new Device();
         device.setDeviceId("DEV_TPE_01_MAIN");
         device.setSiteId("SITE_TPE_01");
@@ -63,7 +87,8 @@ class SiteControllerTest {
 
         mockMvc.perform(get("/api/sites/SITE_TPE_01/devices"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].deviceId", is("DEV_TPE_01_MAIN")));
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].deviceId", is("DEV_TPE_01_MAIN")));
     }
 }

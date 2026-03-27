@@ -6,6 +6,7 @@ import com.iotplatform.model.DailyEnergy;
 import com.iotplatform.model.HourlyEnergy;
 import com.iotplatform.service.EnergyService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -16,7 +17,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -31,7 +34,7 @@ class EnergyControllerTest {
     private EnergyService energyService;
 
     @Test
-    void getHourly_returnsJson() throws Exception {
+    void getHourly_returnsWrappedJson() throws Exception {
         HourlyEnergy hourly = new HourlyEnergy();
         hourly.setSiteId("SITE_TPE_01");
         hourly.setEnergyKwh(new BigDecimal("12.50"));
@@ -40,12 +43,13 @@ class EnergyControllerTest {
 
         mockMvc.perform(get("/api/energy/hourly").param("siteId", "SITE_TPE_01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].energyKwh", is(12.50)));
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].energyKwh", is(12.50)));
     }
 
     @Test
-    void getDaily_withDateRange() throws Exception {
+    void getDaily_verifiesParamBinding() throws Exception {
         DailyEnergy daily = new DailyEnergy();
         daily.setSiteId("SITE_TPE_01");
         daily.setTotalEnergyKwh(new BigDecimal("300.00"));
@@ -58,11 +62,17 @@ class EnergyControllerTest {
                         .param("startDate", "2026-03-25")
                         .param("endDate", "2026-03-28"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].totalEnergyKwh", is(300.00)));
+                .andExpect(jsonPath("$.data[0].totalEnergyKwh", is(300.00)));
+
+        ArgumentCaptor<EnergyQueryParam> captor = ArgumentCaptor.forClass(EnergyQueryParam.class);
+        verify(energyService).getDailyEnergy(captor.capture());
+        assertEquals("SITE_TPE_01", captor.getValue().getSiteId());
+        assertEquals(LocalDate.of(2026, 3, 25), captor.getValue().getStartDate());
+        assertEquals(LocalDate.of(2026, 3, 28), captor.getValue().getEndDate());
     }
 
     @Test
-    void getSummary_returnsSummary() throws Exception {
+    void getSummary_returnsWrappedSummary() throws Exception {
         SiteDailySummary summary = new SiteDailySummary();
         summary.setSiteId("SITE_TPE_01");
         summary.setSiteName("台北工廠A");
@@ -72,16 +82,18 @@ class EnergyControllerTest {
 
         mockMvc.perform(get("/api/energy/summary").param("siteId", "SITE_TPE_01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].deviceCount", is(3)));
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data[0].deviceCount", is(3)));
     }
 
     @Test
-    void getHourly_noParams_returnsAll() throws Exception {
+    void getHourly_noParams_returnsEmptyData() throws Exception {
         when(energyService.getHourlyEnergy(any(EnergyQueryParam.class)))
                 .thenReturn(List.of());
 
         mockMvc.perform(get("/api/energy/hourly"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data", hasSize(0)));
     }
 }
