@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iotplatform.mapper.EnergyMapper">
+
+    <!-- MyBatis Dynamic SQL: <where>, <if>, <choose> -->
+
+    <select id="findHourly" parameterType="com.iotplatform.dto.EnergyQueryParam"
+            resultType="com.iotplatform.model.HourlyEnergy">
+        SELECT id, site_id, device_id, hour_start,
+               avg_power_kw, max_power_kw, min_power_kw,
+               energy_kwh, avg_pf, avg_voltage, reading_count
+        FROM fact_hourly_energy
+        <where>
+            <if test="siteId != null">
+                AND site_id = #{siteId}
+            </if>
+            <if test="deviceId != null">
+                AND device_id = #{deviceId}
+            </if>
+            <if test="startDate != null">
+                AND hour_start &gt;= #{startDate}::timestamp
+            </if>
+            <if test="endDate != null">
+                AND hour_start &lt; (#{endDate}::date + INTERVAL '1 day')
+            </if>
+        </where>
+        ORDER BY hour_start DESC
+        LIMIT 500
+    </select>
+
+    <select id="findDaily" parameterType="com.iotplatform.dto.EnergyQueryParam"
+            resultType="com.iotplatform.model.DailyEnergy">
+        SELECT id, site_id, device_id, reading_date,
+               total_energy_kwh, peak_demand_kw,
+               avg_power_kw, max_power_kw, min_power_kw,
+               avg_pf, avg_voltage, reading_count
+        FROM fact_daily_energy
+        <where>
+            <if test="siteId != null">
+                AND site_id = #{siteId}
+            </if>
+            <if test="deviceId != null">
+                AND device_id = #{deviceId}
+            </if>
+            <choose>
+                <when test="startDate != null and endDate != null">
+                    AND reading_date BETWEEN #{startDate} AND #{endDate}
+                </when>
+                <when test="startDate != null">
+                    AND reading_date &gt;= #{startDate}
+                </when>
+                <when test="endDate != null">
+                    AND reading_date &lt;= #{endDate}
+                </when>
+            </choose>
+        </where>
+        ORDER BY reading_date DESC
+        LIMIT 500
+    </select>
+
+    <select id="findSiteDailySummary" parameterType="com.iotplatform.dto.EnergyQueryParam"
+            resultType="com.iotplatform.dto.SiteDailySummary">
+        SELECT
+            d.site_id,
+            s.site_name,
+            d.reading_date,
+            SUM(d.total_energy_kwh) AS total_energy_kwh,
+            MAX(d.peak_demand_kw)   AS peak_demand_kw,
+            AVG(d.avg_power_kw)     AS avg_power_kw,
+            COUNT(DISTINCT d.device_id) AS device_count
+        FROM fact_daily_energy d
+        JOIN dim_sites s ON d.site_id = s.site_id
+        <where>
+            <if test="siteId != null">
+                AND d.site_id = #{siteId}
+            </if>
+            <if test="startDate != null">
+                AND d.reading_date &gt;= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND d.reading_date &lt;= #{endDate}
+            </if>
+        </where>
+        GROUP BY d.site_id, s.site_name, d.reading_date
+        ORDER BY d.reading_date DESC, d.site_id
+        LIMIT 200
+    </select>
+
+</mapper>
