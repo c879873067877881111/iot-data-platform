@@ -1,4 +1,5 @@
 -- Step 4: Aggregate fact_hourly_energy → fact_daily_energy
+-- Only processes today and yesterday to avoid full table scan
 -- Idempotent: ON CONFLICT DO UPDATE
 
 INSERT INTO fact_daily_energy (
@@ -20,6 +21,7 @@ SELECT
     ROUND(AVG(avg_voltage), 2)              AS avg_voltage,
     SUM(reading_count)                       AS reading_count
 FROM fact_hourly_energy
+WHERE hour_start > NOW() - INTERVAL '2 days'
 GROUP BY site_id, device_id, DATE(hour_start)
 ON CONFLICT (site_id, device_id, reading_date)
 DO UPDATE SET

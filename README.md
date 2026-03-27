@@ -24,9 +24,10 @@
 |-------|-----------|
 | Data Simulation | Python 3.11, psycopg2 |
 | Database | PostgreSQL 16 (Star Schema) |
-| ETL | Apache Airflow 2.10 (LocalExecutor) |
+| ETL | Apache Airflow 3.0.2 (LocalExecutor) |
 | API | Spring Boot 3.5, MyBatis 3, Java 17 |
-| Infrastructure | Docker Compose |
+| API Docs | Swagger UI (springdoc-openapi) |
+| Infrastructure | Docker Compose (7 services) |
 
 ## Data Model (Star Schema)
 
@@ -49,6 +50,7 @@ deduplicate_raw → compute_energy_delta → aggregate_hourly → aggregate_dail
 
 - **Idempotent**: 所有 SQL 使用 `INSERT ... ON CONFLICT DO UPDATE`
 - **Deduplication**: `ROW_NUMBER() OVER (PARTITION BY ...)` 去重策略
+- **Bounded Queries**: 所有聚合 SQL 加上時間窗口，避免全表掃描
 - **Data Quality**: 獨立 DAG 每小時檢查 null、voltage 異常、ingestion gap
 
 ## API Endpoints
@@ -63,6 +65,8 @@ deduplicate_raw → compute_energy_delta → aggregate_hourly → aggregate_dail
 | GET | `/api/energy/summary` | 場站日用電摘要 |
 
 Query parameters: `siteId`, `deviceId`, `startDate`, `endDate`
+
+Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ### MyBatis Dynamic SQL
 
@@ -88,7 +92,6 @@ XML Mapper 展示 `<if>`, `<where>`, `<choose>` 動態查詢：
 ## Quick Start
 
 ```bash
-cp .env.example .env
 docker compose up -d
 ```
 
@@ -97,6 +100,7 @@ docker compose up -d
 | PostgreSQL | `localhost:5432` |
 | Airflow UI | `http://localhost:8081` (admin/admin) |
 | API Server | `http://localhost:8080` |
+| Swagger UI | `http://localhost:8080/swagger-ui.html` |
 
 Simulator 啟動時自動 backfill 3 天歷史數據，Airflow ETL 每 10 分鐘執行一次。
 
@@ -120,6 +124,8 @@ curl "http://localhost:8080/api/energy/summary?startDate=2026-03-27"
 │   ├── models.py            # DeviceReading, DeviceSpec dataclasses
 │   └── writer.py            # PostgreSQL batch writer
 ├── airflow/
+│   ├── Dockerfile           # Airflow 3.0.2
+│   ├── config/airflow.cfg   # Shared config (secret keys)
 │   └── dags/
 │       ├── etl_pipeline_dag.py    # Core ETL DAG
 │       ├── data_quality_dag.py    # Quality checks DAG
@@ -132,7 +138,8 @@ curl "http://localhost:8080/api/energy/summary?startDate=2026-03-27"
 │   │   ├── mapper/          # MyBatis mapper interfaces
 │   │   ├── model/           # Entity classes
 │   │   └── dto/             # Query params, summaries
-│   └── src/main/resources/
-│       └── mapper/          # MyBatis XML (Dynamic SQL)
-└── docker-compose.yml       # 4 services, one command
+│   ├── src/main/resources/
+│   │   └── mapper/          # MyBatis XML (Dynamic SQL)
+│   └── src/test/java/       # Unit tests (Mockito + MockMvc)
+└── docker-compose.yml       # 7 services
 ```

@@ -1,3 +1,28 @@
+x-airflow-common:
+  &airflow-common
+  build: ./airflow
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: 'iot-platform-secret-key'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: 'false'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW_CONN_IOT_PLATFORM_DB: postgresql://iot_user:iot_pass@postgres:5432/iot_platform
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    PYTHONPATH: '/opt/airflow/dags'
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/config:/opt/airflow/config
+    - airflow_logs:/opt/airflow/logs
+  depends_on:
+    &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -27,25 +52,64 @@ services:
       DB_PASSWORD: iot_pass
     restart: on-failure
 
-  airflow:
-    build: ./airflow
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+    environment:
+      <<: *airflow-common-env
     depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *airflow-common-depends-on
+    restart: "no"
+
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
     ports:
       - "8081:8080"
     environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-      AIRFLOW_CONN_IOT_PLATFORM_DB: postgresql://iot_user:iot_pass@postgres:5432/iot_platform
-      _AIRFLOW_DB_MIGRATE: "true"
-      _AIRFLOW_WWW_USER_CREATE: "true"
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
+      <<: *airflow-common-env
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v2/version || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    restart: on-failure
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
     restart: on-failure
 
   api-server:
@@ -62,3 +126,4 @@ services:
 
 volumes:
   postgres_data:
+  airflow_logs:
