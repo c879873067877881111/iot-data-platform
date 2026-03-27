@@ -3,6 +3,7 @@ package com.iotplatform.mapper;
 import com.iotplatform.dto.EnergyQueryParam;
 import com.iotplatform.dto.SiteDailySummary;
 import com.iotplatform.model.DailyEnergy;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,12 @@ class EnergyMapperTest {
 
     @Autowired
     private EnergyMapper energyMapper;
+
+    @Test
+    @Disabled("findHourly XML uses PostgreSQL ::timestamp cast, incompatible with H2")
+    void findHourly_requiresPostgreSQL() {
+        // Requires Testcontainers + PostgreSQL to test #{startDate}::timestamp
+    }
 
     @Test
     void findDaily_withSiteFilter() {

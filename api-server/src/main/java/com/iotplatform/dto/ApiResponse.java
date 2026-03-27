@@ -15,10 +15,6 @@ public class ApiResponse<T> {
         return new ApiResponse<>(200, "success", data);
     }
 
-    public static <T> ApiResponse<T> notFound(String message) {
-        return new ApiResponse<>(404, message, null);
-    }
-
     public static <T> ApiResponse<T> error(int code, String message) {
         return new ApiResponse<>(code, message, null);
     }

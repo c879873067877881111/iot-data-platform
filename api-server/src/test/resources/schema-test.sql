@@ -19,6 +19,7 @@ CREATE TABLE dim_devices (
     FOREIGN KEY (site_id) REFERENCES dim_sites(site_id)
 );
 
+-- H2 compatibility: AUTO_INCREMENT instead of PostgreSQL BIGSERIAL
 CREATE TABLE fact_daily_energy (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     site_id         VARCHAR(20) NOT NULL,
