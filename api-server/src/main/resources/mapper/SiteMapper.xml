@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iotplatform.mapper.SiteMapper">
+
+    <select id="findAll" resultType="com.iotplatform.model.Site">
+        SELECT site_id, site_name, site_type, region, city, capacity_kw, created_at
+        FROM dim_sites
+        ORDER BY site_id
+    </select>
+
+    <select id="findById" resultType="com.iotplatform.model.Site">
+        SELECT site_id, site_name, site_type, region, city, capacity_kw, created_at
+        FROM dim_sites
+        WHERE site_id = #{siteId}
+    </select>
+
+</mapper>
