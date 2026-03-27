@@ -34,7 +34,7 @@ class EnergyControllerTest {
     private EnergyService energyService;
 
     @Test
-    void getHourly_returnsWrappedJson() throws Exception {
+    void getHourly_returnsJson() throws Exception {
         HourlyEnergy hourly = new HourlyEnergy();
         hourly.setSiteId("SITE_TPE_01");
         hourly.setEnergyKwh(new BigDecimal("12.50"));
@@ -43,9 +43,8 @@ class EnergyControllerTest {
 
         mockMvc.perform(get("/api/energy/hourly").param("siteId", "SITE_TPE_01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code", is(200)))
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].energyKwh", is(12.50)));
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].energyKwh", is(12.50)));
     }
 
     @Test
@@ -62,7 +61,7 @@ class EnergyControllerTest {
                         .param("startDate", "2026-03-25")
                         .param("endDate", "2026-03-28"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].totalEnergyKwh", is(300.00)));
+                .andExpect(jsonPath("$[0].totalEnergyKwh", is(300.00)));
 
         ArgumentCaptor<EnergyQueryParam> captor = ArgumentCaptor.forClass(EnergyQueryParam.class);
         verify(energyService).getDailyEnergy(captor.capture());
@@ -72,7 +71,7 @@ class EnergyControllerTest {
     }
 
     @Test
-    void getSummary_returnsWrappedSummary() throws Exception {
+    void getSummary_returnsSummary() throws Exception {
         SiteDailySummary summary = new SiteDailySummary();
         summary.setSiteId("SITE_TPE_01");
         summary.setSiteName("台北工廠A");
@@ -82,18 +81,16 @@ class EnergyControllerTest {
 
         mockMvc.perform(get("/api/energy/summary").param("siteId", "SITE_TPE_01"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code", is(200)))
-                .andExpect(jsonPath("$.data[0].deviceCount", is(3)));
+                .andExpect(jsonPath("$[0].deviceCount", is(3)));
     }
 
     @Test
-    void getHourly_noParams_returnsEmptyData() throws Exception {
+    void getHourly_noParams_returnsEmptyArray() throws Exception {
         when(energyService.getHourlyEnergy(any(EnergyQueryParam.class)))
                 .thenReturn(List.of());
 
         mockMvc.perform(get("/api/energy/hourly"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code", is(200)))
-                .andExpect(jsonPath("$.data", hasSize(0)));
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 }

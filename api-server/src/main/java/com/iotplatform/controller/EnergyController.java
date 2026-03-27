@@ -1,6 +1,5 @@
 package com.iotplatform.controller;
 
-import com.iotplatform.dto.ApiResponse;
 import com.iotplatform.dto.EnergyQueryParam;
 import com.iotplatform.dto.SiteDailySummary;
 import com.iotplatform.model.DailyEnergy;
@@ -23,7 +22,7 @@ public class EnergyController {
     }
 
     @GetMapping("/hourly")
-    public ApiResponse<List<HourlyEnergy>> getHourly(
+    public List<HourlyEnergy> getHourly(
             @RequestParam(required = false) String siteId,
             @RequestParam(required = false) String deviceId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -34,11 +33,11 @@ public class EnergyController {
         param.setDeviceId(deviceId);
         param.setStartDate(startDate);
         param.setEndDate(endDate);
-        return ApiResponse.ok(energyService.getHourlyEnergy(param));
+        return energyService.getHourlyEnergy(param);
     }
 
     @GetMapping("/daily")
-    public ApiResponse<List<DailyEnergy>> getDaily(
+    public List<DailyEnergy> getDaily(
             @RequestParam(required = false) String siteId,
             @RequestParam(required = false) String deviceId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -49,11 +48,11 @@ public class EnergyController {
         param.setDeviceId(deviceId);
         param.setStartDate(startDate);
         param.setEndDate(endDate);
-        return ApiResponse.ok(energyService.getDailyEnergy(param));
+        return energyService.getDailyEnergy(param);
     }
 
     @GetMapping("/summary")
-    public ApiResponse<List<SiteDailySummary>> getSummary(
+    public List<SiteDailySummary> getSummary(
             @RequestParam(required = false) String siteId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
@@ -62,6 +61,6 @@ public class EnergyController {
         param.setSiteId(siteId);
         param.setStartDate(startDate);
         param.setEndDate(endDate);
-        return ApiResponse.ok(energyService.getSiteDailySummary(param));
+        return energyService.getSiteDailySummary(param);
     }
 }

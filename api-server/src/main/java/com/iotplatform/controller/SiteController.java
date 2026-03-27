@@ -1,6 +1,5 @@
 package com.iotplatform.controller;
 
-import com.iotplatform.dto.ApiResponse;
 import com.iotplatform.model.Device;
 import com.iotplatform.model.Site;
 import com.iotplatform.service.SiteService;
@@ -21,21 +20,21 @@ public class SiteController {
     }
 
     @GetMapping
-    public ApiResponse<List<Site>> listSites() {
-        return ApiResponse.ok(siteService.getAllSites());
+    public List<Site> listSites() {
+        return siteService.getAllSites();
     }
 
     @GetMapping("/{siteId}")
-    public ApiResponse<Site> getSite(@PathVariable String siteId) {
+    public Site getSite(@PathVariable String siteId) {
         Site site = siteService.getSiteById(siteId);
         if (site == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Site not found: " + siteId);
         }
-        return ApiResponse.ok(site);
+        return site;
     }
 
     @GetMapping("/{siteId}/devices")
-    public ApiResponse<List<Device>> listDevices(@PathVariable String siteId) {
-        return ApiResponse.ok(siteService.getDevicesBySiteId(siteId));
+    public List<Device> listDevices(@PathVariable String siteId) {
+        return siteService.getDevicesBySiteId(siteId);
     }
 }

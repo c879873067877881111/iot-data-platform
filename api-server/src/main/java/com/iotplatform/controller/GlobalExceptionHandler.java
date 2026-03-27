@@ -1,31 +1,34 @@
 package com.iotplatform.controller;
 
-import com.iotplatform.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.net.URI;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException e) {
-        ApiResponse<Void> body = ApiResponse.error(e.getStatusCode().value(), e.getReason());
-        return ResponseEntity.status(e.getStatusCode()).body(body);
+    public ProblemDetail handleResponseStatus(ResponseStatusException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(e.getStatusCode(), e.getReason());
+        problem.setTitle(e.getStatusCode().toString());
+        return problem;
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleBadRequest(IllegalArgumentException e) {
-        return ApiResponse.error(400, e.getMessage());
+    public ProblemDetail handleBadRequest(IllegalArgumentException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+        problem.setTitle("Bad Request");
+        return problem;
     }
 
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ApiResponse<Void> handleException(Exception e) {
-        return ApiResponse.error(500, "Internal server error");
+    public ProblemDetail handleException(Exception e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
+        problem.setTitle("Internal Server Error");
+        return problem;
     }
 }
