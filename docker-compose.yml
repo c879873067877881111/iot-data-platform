@@ -66,10 +66,7 @@ services:
           --firstname Admin \
           --lastname User \
           --role Admin \
-          --email admin@example.com || true &&
-        airflow dags unpause etl_pipeline &&
-        airflow dags unpause ingest_thingspeak &&
-        airflow dags unpause data_quality
+          --email admin@example.com || true
     environment:
       <<: *airflow-common-env
     depends_on:
@@ -115,6 +112,26 @@ services:
       airflow-init:
         condition: service_completed_successfully
     restart: on-failure
+
+  airflow-unpause:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        for dag in etl_pipeline ingest_thingspeak data_quality; do
+          until airflow dags unpause "$$dag" 2>/dev/null; do
+            echo "Waiting for $$dag to be parsed..."
+            sleep 5
+          done
+          echo "Unpaused $$dag"
+        done
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      airflow-apiserver:
+        condition: service_healthy
+    restart: "no"
 
   api-server:
     build: ./api-server
