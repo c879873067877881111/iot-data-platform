@@ -43,7 +43,7 @@ dim_devices ─┘
 ```
 
 - **Staging**: `raw_device_readings` — 原始數據，包含 quality_flag
-- **Dimensions**: `dim_sites` (6 sites), `dim_devices` (15 devices)
+- **Dimensions**: `dim_sites` (7 sites), `dim_devices` (16 devices)
 - **Facts**: 三層聚合 (readings → hourly → daily)
 - **Metadata**: `data_quality_log` — 數據品質檢查記錄
 
@@ -124,7 +124,7 @@ docker compose up -d
 | API Server | `http://localhost:8080` |
 | Swagger UI | `http://localhost:8080/swagger-ui.html` |
 
-啟動後自動 backfill 3 天歷史數據，Airflow ETL 每 10 分鐘執行一次。
+啟動後自動 backfill 3 天歷史數據，Airflow ETL 每 10 分鐘執行，ThingSpeak 每 5 分鐘拉取真實感測器數據。
 
 ```bash
 # 查詢場站列表
