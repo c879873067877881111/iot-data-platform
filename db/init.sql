@@ -147,7 +147,7 @@ INSERT INTO dim_sites (site_id, site_name, site_type, region, city, capacity_kw)
 ('SITE_TXG_01', '台中工業區廠房',   'factory',   '中區', '台中市', 3000.00),
 ('SITE_KHH_01', '高雄前鎮倉儲',     'warehouse', '南區', '高雄市', 1000.00),
 ('SITE_KHH_02', '高雄楠梓加工區',   'factory',   '南區', '高雄市', 4000.00),
-('SITE_EXT_01', '遠端監控站',   'factory',   '外部', '海外',   500.00);
+('SITE_EXT_01', '外部感測站（PZEM-004T）', 'external', '外部', 'Remote', NULL);
 
 INSERT INTO dim_devices (device_id, site_id, device_name, device_type, rated_power_kw) VALUES
 ('DEV_TPE01_MAIN', 'SITE_TPE_01', '主電錶',       'main_meter', 2000.00),
@@ -165,4 +165,4 @@ INSERT INTO dim_devices (device_id, site_id, device_name, device_type, rated_pow
 ('DEV_KHH01_MAIN', 'SITE_KHH_01', '主電錶',       'main_meter', 1000.00),
 ('DEV_KHH02_MAIN', 'SITE_KHH_02', '主電錶',       'main_meter', 4000.00),
 ('DEV_KHH02_SMT',  'SITE_KHH_02', 'SMT產線電錶',  'sub_meter',  2000.00),
-('DEV_EXT_MAIN',   'SITE_EXT_01', '主電錶',       'main_meter',  500.00);
+('DEV_EXT_PZEM',   'SITE_EXT_01', 'PZEM-004T 電力監測模組', 'iot_sensor', NULL);
