@@ -1,5 +1,5 @@
 -- Step 2: Compute energy_delta using LAG window function
--- energy_delta = current energy_kwh - previous energy_kwh per device
+-- Only processes readings from the last 2 hours to avoid full table scan
 
 UPDATE fact_energy_readings f
 SET energy_delta = sub.delta
@@ -10,8 +10,9 @@ FROM (
                ORDER BY reading_time
            ) AS delta
     FROM fact_energy_readings
-    WHERE energy_delta IS NULL
+    WHERE reading_time > NOW() - INTERVAL '2 hours'
 ) sub
 WHERE f.id = sub.id
+  AND f.energy_delta IS NULL
   AND sub.delta IS NOT NULL
   AND sub.delta >= 0;

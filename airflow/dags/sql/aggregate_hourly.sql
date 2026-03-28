@@ -1,4 +1,5 @@
 -- Step 3: Aggregate fact_energy_readings → fact_hourly_energy
+-- Only processes the last 3 hours to avoid full table scan
 -- Idempotent: ON CONFLICT DO UPDATE
 
 INSERT INTO fact_hourly_energy (
@@ -18,6 +19,7 @@ SELECT
     ROUND(AVG(voltage_avg), 2)          AS avg_voltage,
     COUNT(*)                            AS reading_count
 FROM fact_energy_readings
+WHERE reading_time > NOW() - INTERVAL '3 hours'
 GROUP BY site_id, device_id, DATE_TRUNC('hour', reading_time)
 ON CONFLICT (site_id, device_id, hour_start)
 DO UPDATE SET

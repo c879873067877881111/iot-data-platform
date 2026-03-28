@@ -36,6 +36,12 @@ with DAG(
         op_args=["deduplicate_raw.sql"],
     )
 
+    mark_rejected = PythonOperator(
+        task_id="mark_rejected",
+        python_callable=run_sql_file,
+        op_args=["mark_rejected.sql"],
+    )
+
     compute_delta = PythonOperator(
         task_id="compute_energy_delta",
         python_callable=run_sql_file,
@@ -54,4 +60,4 @@ with DAG(
         op_args=["aggregate_daily.sql"],
     )
 
-    deduplicate >> compute_delta >> hourly >> daily
+    deduplicate >> mark_rejected >> compute_delta >> hourly >> daily

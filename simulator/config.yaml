@@ -1,9 +1,9 @@
 database:
-  host: ${DB_HOST:-postgres}
-  port: ${DB_PORT:-5432}
-  dbname: ${DB_NAME:-iot_platform}
-  user: ${DB_USER:-iot_user}
-  password: ${DB_PASSWORD:-iot_pass}
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  dbname: ${DB_NAME}
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
 
 generation:
   interval_seconds: 60

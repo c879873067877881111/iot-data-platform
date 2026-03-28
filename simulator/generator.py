@@ -112,7 +112,7 @@ def generate_reading(
 
     quality_flag = "ANOMALY" if is_anomaly else "RAW"
 
-    return DeviceReading(
+    reading = DeviceReading(
         site_id=spec.site_id,
         device_id=spec.device_id,
         collected_at=ts,
@@ -126,6 +126,23 @@ def generate_reading(
         demand_kw=round(demand_kw, 2),
         quality_flag=quality_flag,
     )
+
+    # Inject dirty data (~2% chance per reading)
+    if random.random() < 0.008:
+        # NULL fields — sensor dropout
+        reading.active_power = None
+        reading.reactive_power = None
+        reading.quality_flag = "RAW"
+    elif random.random() < 0.006:
+        # Negative power — sensor wiring error
+        reading.active_power = -abs(reading.active_power)
+        reading.quality_flag = "RAW"
+    elif random.random() < 0.005:
+        # Future timestamp — clock drift
+        reading.collected_at = ts + timedelta(hours=random.randint(1, 3))
+        reading.quality_flag = "RAW"
+
+    return reading
 
 
 def build_specs() -> list[DeviceSpec]:
@@ -145,7 +162,12 @@ def backfill(writer: PgWriter, specs: list, profiles: dict, cfg: dict, days: int
     total = 0
     while ts < now:
         for spec in specs:
-            batch.append(generate_reading(spec, ts, profiles, noise, anomaly))
+            reading = generate_reading(spec, ts, profiles, noise, anomaly)
+            batch.append(reading)
+            # ~1% duplicate — same device, same timestamp, slightly different values
+            if random.random() < 0.01:
+                dup = generate_reading(spec, ts, profiles, noise, anomaly)
+                batch.append(dup)
         if len(batch) >= 500:
             total += writer.write(batch)
             batch.clear()
@@ -173,10 +195,12 @@ def run_continuous(writer: PgWriter, specs: list, profiles: dict, cfg: dict):
     logger.info("Continuous mode: %d devices, interval=%ds", len(specs), interval)
     while running:
         ts = datetime.now().replace(second=0, microsecond=0)
-        readings = [
-            generate_reading(spec, ts, profiles, noise, anomaly)
-            for spec in specs
-        ]
+        readings = []
+        for spec in specs:
+            reading = generate_reading(spec, ts, profiles, noise, anomaly)
+            readings.append(reading)
+            if random.random() < 0.01:
+                readings.append(generate_reading(spec, ts, profiles, noise, anomaly))
         writer.write(readings)
         time.sleep(interval)
 

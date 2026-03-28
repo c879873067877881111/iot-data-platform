@@ -1,17 +1,20 @@
 # IoT Data Platform
 
-模擬 IoT 電力數據的完整數據中台：數據採集 → Airflow ETL → Star Schema 倉儲 → Spring Boot API。
+IoT 電力監控數據中台：數據採集 → Airflow ETL（清洗/去重/聚合）→ Star Schema 倉儲 → Spring Boot REST API。
+
+> 本專案使用 Python 產生擬真電力數據（含髒資料），做為開發階段的資料來源，實際場景可替換為 MQTT / OPC-UA / HTTP 等協議對接實體設備。
 
 ## Architecture
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Simulator   │───▶│  PostgreSQL  │◀───│   Airflow    │    │  API Server  │
-│  (Python)    │    │  (Staging)   │    │   (ETL)      │    │ (Spring Boot)│
+│ Data Source  │───▶│  PostgreSQL  │◀───│   Airflow    │    │  API Server  │
+│  (Python)    │    │  (Raw/DW)    │    │   (ETL)      │    │ (Spring Boot)│
 │              │    │              │    │              │    │              │
-│ 15 devices   │    │ raw_readings │    │ deduplicate  │    │ GET /sites   │
-│ 6 sites      │    │ dim_sites    │    │ compute Δ    │    │ GET /energy  │
-│ 60s interval │    │ fact_*       │    │ hourly agg   │    │ GET /summary │
+│ 6 sites      │    │ raw_readings │    │ deduplicate  │    │ GET /sites   │
+│ 15 devices   │    │ dim_sites    │    │ mark_rejected│    │ GET /energy  │
+│ 60s interval │    │ fact_*       │    │ compute Δ    │    │ GET /summary │
+│              │    │              │    │ hourly agg   │    │              │
 └─────────────┘    └─────────────┘    │ daily agg    │    └──────┬──────┘
                                        └─────────────┘           │
                                                                  ▼
@@ -22,11 +25,12 @@
 
 | Layer | Technology |
 |-------|-----------|
-| Data Simulation | Python 3.11, psycopg2 |
+| Data Ingestion | Python 3.11, psycopg2 |
 | Database | PostgreSQL 16 (Star Schema) |
-| ETL | Apache Airflow 2.10 (LocalExecutor) |
+| ETL | Apache Airflow 3.0.2 (LocalExecutor) |
 | API | Spring Boot 3.5, MyBatis 3, Java 17 |
-| Infrastructure | Docker Compose |
+| API Docs | Swagger UI (springdoc-openapi) |
+| Infrastructure | Docker Compose (7 services) |
 
 ## Data Model (Star Schema)
 
@@ -44,12 +48,26 @@ dim_devices ─┘
 ## ETL Pipeline
 
 ```
-deduplicate_raw → compute_energy_delta → aggregate_hourly → aggregate_daily
+deduplicate_raw → mark_rejected → compute_energy_delta → aggregate_hourly → aggregate_daily
 ```
 
 - **Idempotent**: 所有 SQL 使用 `INSERT ... ON CONFLICT DO UPDATE`
 - **Deduplication**: `ROW_NUMBER() OVER (PARTITION BY ...)` 去重策略
-- **Data Quality**: 獨立 DAG 每小時檢查 null、voltage 異常、ingestion gap
+- **Data Cleaning**: 過濾 NULL power、負值、未來時間戳、ANOMALY flag，標記拒絕原因（REJECTED_NULL / REJECTED_NEGATIVE / REJECTED_FUTURE）
+- **Bounded Queries**: 所有聚合 SQL 加上時間窗口，避免全表掃描
+- **Data Quality**: 獨立 DAG 每小時檢查 NULL power、negative power、voltage 異常、未來時間戳、重複率、ingestion gap
+
+## Data Quality
+
+原始數據包含約 2% 的異常資料，ETL pipeline 負責清洗與標記：
+
+| 類型 | 場景 | ETL 處理 |
+|------|------|----------|
+| NULL power | 感測器斷線 | `REJECTED_NULL` |
+| 負值 power | 接線錯誤 | `REJECTED_NEGATIVE` |
+| 未來時間戳 | 設備時鐘漂移 | `REJECTED_FUTURE` |
+| 重複資料 | 重送/網路重試 | `ROW_NUMBER` 去重 |
+| 異常讀數 | Z-score > 3 | `ANOMALY` flag |
 
 ## API Endpoints
 
@@ -63,6 +81,11 @@ deduplicate_raw → compute_energy_delta → aggregate_hourly → aggregate_dail
 | GET | `/api/energy/summary` | 場站日用電摘要 |
 
 Query parameters: `siteId`, `deviceId`, `startDate`, `endDate`
+
+- **Success**: 直接回傳 JSON（無 envelope wrapper）
+- **Error**: RFC 7807 ProblemDetail (`application/problem+json`)
+
+Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ### MyBatis Dynamic SQL
 
@@ -88,7 +111,7 @@ XML Mapper 展示 `<if>`, `<where>`, `<choose>` 動態查詢：
 ## Quick Start
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # 修改密碼（開發環境可直接使用預設值）
 docker compose up -d
 ```
 
@@ -97,8 +120,9 @@ docker compose up -d
 | PostgreSQL | `localhost:5432` |
 | Airflow UI | `http://localhost:8081` (admin/admin) |
 | API Server | `http://localhost:8080` |
+| Swagger UI | `http://localhost:8080/swagger-ui.html` |
 
-Simulator 啟動時自動 backfill 3 天歷史數據，Airflow ETL 每 10 分鐘執行一次。
+啟動後自動 backfill 3 天歷史數據，Airflow ETL 每 10 分鐘執行一次。
 
 ```bash
 # 查詢場站列表
@@ -111,28 +135,43 @@ curl "http://localhost:8080/api/energy/daily?siteId=SITE_TPE_01&startDate=2026-0
 curl "http://localhost:8080/api/energy/summary?startDate=2026-03-27"
 ```
 
+## Tests
+
+```bash
+cd api-server && mvn test
+```
+
+| Layer | Framework | Tests |
+|-------|-----------|-------|
+| DAO | @MybatisTest + H2 (PostgreSQL mode) | 12 |
+| Service | Mockito | 12 |
+| Controller | @WebMvcTest + MockMvc | 9 |
+
 ## Project Structure
 
 ```
+├── .env.example             # 環境變數模板
 ├── db/init.sql              # Schema + seed data
-├── simulator/               # Python IoT data generator
-│   ├── generator.py         # Main simulator (backfill + continuous)
+├── simulator/               # 數據來源（開發階段替代實體設備）
+│   ├── generator.py         # 擬真電力數據產生器
 │   ├── models.py            # DeviceReading, DeviceSpec dataclasses
 │   └── writer.py            # PostgreSQL batch writer
 ├── airflow/
+│   ├── Dockerfile           # Airflow 3.0.2
 │   └── dags/
-│       ├── etl_pipeline_dag.py    # Core ETL DAG
-│       ├── data_quality_dag.py    # Quality checks DAG
+│       ├── etl_pipeline_dag.py    # Core ETL DAG (5 tasks)
+│       ├── data_quality_dag.py    # Quality checks DAG (6 checks)
 │       ├── core/db.py             # DB helper
 │       └── sql/                   # Idempotent SQL files
 ├── api-server/              # Spring Boot + MyBatis
 │   ├── src/main/java/com/iotplatform/
-│   │   ├── controller/      # REST endpoints
+│   │   ├── controller/      # REST endpoints + GlobalExceptionHandler (RFC 7807)
 │   │   ├── service/         # Interface + Impl pattern
 │   │   ├── mapper/          # MyBatis mapper interfaces
 │   │   ├── model/           # Entity classes
 │   │   └── dto/             # Query params, summaries
-│   └── src/main/resources/
-│       └── mapper/          # MyBatis XML (Dynamic SQL)
-└── docker-compose.yml       # 4 services, one command
+│   ├── src/main/resources/
+│   │   └── mapper/          # MyBatis XML (Dynamic SQL)
+│   └── src/test/            # 33 tests (DAO + Service + Controller)
+└── docker-compose.yml       # 7 services, secrets via .env
 ```

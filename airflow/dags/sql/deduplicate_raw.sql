@@ -1,4 +1,5 @@
 -- Step 1: Deduplicate & validate raw readings → fact_energy_readings
+-- Filters: ANOMALY flag, NULL/negative power, future timestamps, duplicates
 -- Strategy: ROW_NUMBER to pick latest reading per (site, device, time)
 -- Idempotent: ON CONFLICT DO UPDATE
 
@@ -11,35 +12,39 @@ WITH ranked AS (
     FROM raw_device_readings
     WHERE is_processed = FALSE
       AND quality_flag != 'ANOMALY'
+      AND active_power IS NOT NULL
+      AND active_power >= 0
+      AND collected_at <= NOW()
 ),
 clean AS (
     SELECT * FROM ranked WHERE rn = 1
+),
+inserted AS (
+    INSERT INTO fact_energy_readings (
+        site_id, device_id, reading_time,
+        voltage_avg, current_avg, active_power, reactive_power,
+        power_factor, frequency, energy_kwh, demand_kw,
+        raw_reading_id
+    )
+    SELECT
+        site_id, device_id, collected_at,
+        voltage_avg, current_avg, active_power, reactive_power,
+        power_factor, frequency, energy_kwh, demand_kw,
+        id
+    FROM clean
+    ON CONFLICT (site_id, device_id, reading_time)
+    DO UPDATE SET
+        voltage_avg    = EXCLUDED.voltage_avg,
+        current_avg    = EXCLUDED.current_avg,
+        active_power   = EXCLUDED.active_power,
+        reactive_power = EXCLUDED.reactive_power,
+        power_factor   = EXCLUDED.power_factor,
+        frequency      = EXCLUDED.frequency,
+        energy_kwh     = EXCLUDED.energy_kwh,
+        demand_kw      = EXCLUDED.demand_kw,
+        raw_reading_id = EXCLUDED.raw_reading_id
+    RETURNING raw_reading_id
 )
-INSERT INTO fact_energy_readings (
-    site_id, device_id, reading_time,
-    voltage_avg, current_avg, active_power, reactive_power,
-    power_factor, frequency, energy_kwh, demand_kw,
-    raw_reading_id
-)
-SELECT
-    site_id, device_id, collected_at,
-    voltage_avg, current_avg, active_power, reactive_power,
-    power_factor, frequency, energy_kwh, demand_kw,
-    id
-FROM clean
-ON CONFLICT (site_id, device_id, reading_time)
-DO UPDATE SET
-    voltage_avg    = EXCLUDED.voltage_avg,
-    current_avg    = EXCLUDED.current_avg,
-    active_power   = EXCLUDED.active_power,
-    reactive_power = EXCLUDED.reactive_power,
-    power_factor   = EXCLUDED.power_factor,
-    frequency      = EXCLUDED.frequency,
-    energy_kwh     = EXCLUDED.energy_kwh,
-    demand_kw      = EXCLUDED.demand_kw,
-    raw_reading_id = EXCLUDED.raw_reading_id;
-
--- Mark processed
 UPDATE raw_device_readings
 SET is_processed = TRUE
-WHERE is_processed = FALSE;
+WHERE id IN (SELECT raw_reading_id FROM inserted);

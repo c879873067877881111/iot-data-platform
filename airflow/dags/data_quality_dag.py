@@ -32,6 +32,16 @@ CHECKS = [
         "threshold": 10,
     },
     {
+        "check_type": "NEGATIVE_POWER",
+        "description": "Readings with negative active_power (sensor wiring error)",
+        "sql": """
+            SELECT COUNT(*) FROM raw_device_readings
+            WHERE active_power < 0
+              AND ingested_at > NOW() - INTERVAL '2 hours'
+        """,
+        "threshold": 10,
+    },
+    {
         "check_type": "VOLTAGE_RANGE",
         "description": "Readings with voltage outside 180-260V",
         "sql": """
@@ -40,6 +50,26 @@ CHECKS = [
               AND ingested_at > NOW() - INTERVAL '2 hours'
         """,
         "threshold": 5,
+    },
+    {
+        "check_type": "FUTURE_TIMESTAMP",
+        "description": "Readings with collected_at in the future (clock drift)",
+        "sql": """
+            SELECT COUNT(*) FROM raw_device_readings
+            WHERE collected_at > NOW()
+              AND ingested_at > NOW() - INTERVAL '2 hours'
+        """,
+        "threshold": 5,
+    },
+    {
+        "check_type": "DUPLICATE_RATE",
+        "description": "Duplicate readings per (site, device, time) in last 2 hours",
+        "sql": """
+            SELECT COUNT(*) - COUNT(DISTINCT (site_id, device_id, collected_at))
+            FROM raw_device_readings
+            WHERE ingested_at > NOW() - INTERVAL '2 hours'
+        """,
+        "threshold": 20,
     },
     {
         "check_type": "INGESTION_GAP",
