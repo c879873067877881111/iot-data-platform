@@ -8,7 +8,9 @@ Schedule: every 5 minutes
 Source: Channel 972755 — ESP Energy Monitor (PZEM-004T)
 """
 
-from datetime import datetime, timedelta
+import logging
+import math
+from datetime import datetime, timedelta, timezone
 
 import requests
 from airflow import DAG
@@ -16,6 +18,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from core.db import CONN_ID
+
+logger = logging.getLogger(__name__)
 
 default_args = {
     "owner": "iot-platform",
@@ -43,17 +47,34 @@ CHANNELS = [
 THINGSPEAK_API = "https://api.thingspeak.com/channels/{channel_id}/feeds.json"
 
 
+def safe_float(val):
+    if val is None:
+        return None
+    try:
+        v = float(val)
+        return None if math.isnan(v) or math.isinf(v) else v
+    except (ValueError, TypeError):
+        return None
+
+
+def to_utc_naive(ts_str):
+    """Parse ISO timestamp to UTC naive datetime for consistent storage."""
+    dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def fetch_and_store(**context):
     hook = PostgresHook(postgres_conn_id=CONN_ID)
 
     for ch in CHANNELS:
         url = THINGSPEAK_API.format(channel_id=ch["channel_id"])
-        resp = requests.get(url, params={"results": 5}, timeout=30)
+        resp = requests.get(url, params={"results": 10}, timeout=30)
         resp.raise_for_status()
         data = resp.json()
 
         feeds = data.get("feeds", [])
         if not feeds:
+            logger.info("Channel %s: no feeds returned", ch["channel_id"])
             continue
 
         # Get last ingested timestamp to avoid duplicates
@@ -68,12 +89,10 @@ def fetch_and_store(**context):
 
         rows = []
         for feed in feeds:
-            collected_at = feed["created_at"]
+            collected_at = to_utc_naive(feed["created_at"])
 
             # Skip already ingested readings
-            if last_collected and datetime.fromisoformat(
-                collected_at.replace("Z", "+00:00")
-            ).replace(tzinfo=None) <= last_collected:
+            if last_collected and collected_at <= last_collected:
                 continue
 
             row = {
@@ -82,10 +101,16 @@ def fetch_and_store(**context):
                 "collected_at": collected_at,
             }
             for ts_field, db_col in ch["fields"].items():
-                val = feed.get(ts_field)
-                row[db_col] = float(val) if val is not None else None
+                row[db_col] = safe_float(feed.get(ts_field))
 
             rows.append(row)
+
+        logger.info(
+            "Channel %s: fetched %d, new %d",
+            ch["channel_id"],
+            len(feeds),
+            len(rows),
+        )
 
         if not rows:
             continue
