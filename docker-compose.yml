@@ -119,8 +119,15 @@ services:
     command:
       - -c
       - |
+        TIMEOUT=120
         for dag in etl_pipeline ingest_thingspeak data_quality; do
+          elapsed=0
           until airflow dags unpause "$$dag" 2>/dev/null; do
+            elapsed=$$((elapsed + 5))
+            if [ "$$elapsed" -ge "$$TIMEOUT" ]; then
+              echo "TIMEOUT: failed to unpause $$dag after $${TIMEOUT}s"
+              break
+            fi
             echo "Waiting for $$dag to be parsed..."
             sleep 5
           done
