@@ -1,4 +1,5 @@
 -- Step 1: Deduplicate & validate raw readings → fact_energy_readings
+-- Filters: ANOMALY flag, NULL/negative power, future timestamps, duplicates
 -- Strategy: ROW_NUMBER to pick latest reading per (site, device, time)
 -- Idempotent: ON CONFLICT DO UPDATE
 
@@ -11,6 +12,9 @@ WITH ranked AS (
     FROM raw_device_readings
     WHERE is_processed = FALSE
       AND quality_flag != 'ANOMALY'
+      AND active_power IS NOT NULL
+      AND active_power >= 0
+      AND collected_at <= NOW()
 ),
 clean AS (
     SELECT * FROM ranked WHERE rn = 1
