@@ -5,18 +5,18 @@ x-airflow-common:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
     AIRFLOW__CORE__FERNET_KEY: ''
-    AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: 'iot-platform-secret-key'
+    AIRFLOW__CORE__INTERNAL_API_SECRET_KEY: ${AIRFLOW_INTERNAL_API_SECRET}
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
-    AIRFLOW_CONN_IOT_PLATFORM_DB: postgresql://iot_user:iot_pass@postgres:5432/iot_platform
-    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
+    AIRFLOW_CONN_IOT_PLATFORM_DB: postgresql://${IOT_DB_USER}:${IOT_DB_PASSWORD}@postgres:5432/${IOT_DB_NAME}
     PYTHONPATH: '/opt/airflow/dags'
   volumes:
     - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/config:/opt/airflow/config
     - airflow_logs:/opt/airflow/logs
   depends_on:
     &airflow-common-depends-on
@@ -27,15 +27,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       retries: 5
 
@@ -47,9 +47,9 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: iot_platform
-      DB_USER: iot_user
-      DB_PASSWORD: iot_pass
+      DB_NAME: ${IOT_DB_NAME}
+      DB_USER: ${IOT_DB_USER}
+      DB_PASSWORD: ${IOT_DB_PASSWORD}
     restart: on-failure
 
   airflow-init:
@@ -60,8 +60,8 @@ services:
       - |
         airflow db migrate &&
         airflow users create \
-          --username admin \
-          --password admin \
+          --username ${AIRFLOW_ADMIN_USER} \
+          --password ${AIRFLOW_ADMIN_PASSWORD} \
           --firstname Admin \
           --lastname User \
           --role Admin \
@@ -120,9 +120,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/iot_platform
-      SPRING_DATASOURCE_USERNAME: iot_user
-      SPRING_DATASOURCE_PASSWORD: iot_pass
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${IOT_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${IOT_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${IOT_DB_PASSWORD}
 
 volumes:
   postgres_data:
