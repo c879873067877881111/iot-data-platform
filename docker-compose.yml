@@ -14,6 +14,7 @@ x-airflow-common:
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
     AIRFLOW_CONN_IOT_PLATFORM_DB: postgresql://${IOT_DB_USER}:${IOT_DB_PASSWORD}@postgres:5432/${IOT_DB_NAME}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     PYTHONPATH: '/opt/airflow/dags'
   volumes:
     - ./airflow/dags:/opt/airflow/dags
@@ -65,7 +66,10 @@ services:
           --firstname Admin \
           --lastname User \
           --role Admin \
-          --email admin@example.com || true
+          --email admin@example.com || true &&
+        airflow dags unpause etl_pipeline &&
+        airflow dags unpause ingest_thingspeak &&
+        airflow dags unpause data_quality
     environment:
       <<: *airflow-common-env
     depends_on:
