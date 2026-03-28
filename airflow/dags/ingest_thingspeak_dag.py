@@ -28,7 +28,7 @@ CHANNELS = [
     {
         "channel_id": 972755,
         "site_id": "SITE_EXT_01",
-        "device_id": "DEV_EXT_PZEM",
+        "device_id": "DEV_EXT_MAIN",
         "fields": {
             "field1": "energy_kwh",
             "field2": "active_power",
