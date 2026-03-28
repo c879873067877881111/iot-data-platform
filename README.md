@@ -2,30 +2,32 @@
 
 IoT 電力監控數據中台：數據採集 → Airflow ETL（清洗/去重/聚合）→ Star Schema 倉儲 → Spring Boot REST API。
 
-> 本專案使用 Python 產生擬真電力數據（含髒資料），做為開發階段的資料來源，實際場景可替換為 MQTT / OPC-UA / HTTP 等協議對接實體設備。
+整合真實 IoT 感測器數據（[ThingSpeak PZEM-004T](https://thingspeak.com/channels/972755)）與模擬數據，展示完整的數據工程流程。
 
 ## Architecture
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Data Source  │───▶│  PostgreSQL  │◀───│   Airflow    │    │  API Server  │
-│  (Python)    │    │  (Raw/DW)    │    │   (ETL)      │    │ (Spring Boot)│
-│              │    │              │    │              │    │              │
-│ 6 sites      │    │ raw_readings │    │ deduplicate  │    │ GET /sites   │
-│ 15 devices   │    │ dim_sites    │    │ mark_rejected│    │ GET /energy  │
-│ 60s interval │    │ fact_*       │    │ compute Δ    │    │ GET /summary │
-│              │    │              │    │ hourly agg   │    │              │
-└─────────────┘    └─────────────┘    │ daily agg    │    └──────┬──────┘
-                                       └─────────────┘           │
-                                                                 ▼
-                                                          jdbc:postgresql
+┌─────────────┐
+│ ThingSpeak   │──┐
+│ (Real IoT)   │  │    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ PZEM-004T    │  ├──▶│  PostgreSQL  │◀───│   Airflow    │    │  API Server  │
+└─────────────┘  │    │  (Raw/DW)    │    │   (ETL)      │    │ (Spring Boot)│
+┌─────────────┐  │    │              │    │              │    │              │
+│ Simulator    │──┘    │ raw_readings │    │ deduplicate  │    │ GET /sites   │
+│ (Python)     │       │ dim_sites    │    │ mark_rejected│    │ GET /energy  │
+│ 7 sites      │       │ fact_*       │    │ compute Δ    │    │ GET /summary │
+│ 16 devices   │       │              │    │ hourly agg   │    │              │
+└─────────────┘       └─────────────┘    │ daily agg    │    └──────┬──────┘
+                                          └─────────────┘           │
+                                                                    ▼
+                                                             jdbc:postgresql
 ```
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Data Ingestion | Python 3.11, psycopg2 |
+| Data Ingestion | ThingSpeak API (real IoT), Python 3.11 simulator |
 | Database | PostgreSQL 16 (Star Schema) |
 | ETL | Apache Airflow 3.0.2 (LocalExecutor) |
 | API | Spring Boot 3.5, MyBatis 3, Java 17 |
@@ -152,13 +154,14 @@ cd api-server && mvn test
 ```
 ├── .env.example             # 環境變數模板
 ├── db/init.sql              # Schema + seed data
-├── simulator/               # 數據來源（開發階段替代實體設備）
+├── simulator/               # 模擬數據產生器（補充 ThingSpeak 真實數據）
 │   ├── generator.py         # 擬真電力數據產生器
 │   ├── models.py            # DeviceReading, DeviceSpec dataclasses
 │   └── writer.py            # PostgreSQL batch writer
 ├── airflow/
 │   ├── Dockerfile           # Airflow 3.0.2
 │   └── dags/
+│       ├── ingest_thingspeak_dag.py   # Real IoT data ingestion
 │       ├── etl_pipeline_dag.py    # Core ETL DAG (5 tasks)
 │       ├── data_quality_dag.py    # Quality checks DAG (6 checks)
 │       ├── core/db.py             # DB helper
