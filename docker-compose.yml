@@ -14,6 +14,7 @@ x-airflow-common:
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
     AIRFLOW_CONN_IOT_PLATFORM_DB: postgresql://${IOT_DB_USER}:${IOT_DB_PASSWORD}@postgres:5432/${IOT_DB_NAME}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     PYTHONPATH: '/opt/airflow/dags'
   volumes:
     - ./airflow/dags:/opt/airflow/dags
@@ -111,6 +112,33 @@ services:
       airflow-init:
         condition: service_completed_successfully
     restart: on-failure
+
+  airflow-unpause:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        TIMEOUT=120
+        for dag in etl_pipeline ingest_thingspeak data_quality; do
+          elapsed=0
+          until airflow dags unpause "$$dag" 2>/dev/null; do
+            elapsed=$$((elapsed + 5))
+            if [ "$$elapsed" -ge "$$TIMEOUT" ]; then
+              echo "TIMEOUT: failed to unpause $$dag after $${TIMEOUT}s"
+              break
+            fi
+            echo "Waiting for $$dag to be parsed..."
+            sleep 5
+          done
+          echo "Unpaused $$dag"
+        done
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      airflow-apiserver:
+        condition: service_healthy
+    restart: "no"
 
   api-server:
     build: ./api-server
