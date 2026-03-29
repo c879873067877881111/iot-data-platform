@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS raw_device_readings (
     energy_kwh      NUMERIC(14,2),
     demand_kw       NUMERIC(10,2),
     is_processed    BOOLEAN         NOT NULL DEFAULT FALSE,
-    quality_flag    VARCHAR(16)     DEFAULT 'RAW'
+    quality_flag    VARCHAR(32)     DEFAULT 'RAW'
 );
 
 CREATE INDEX idx_raw_collected ON raw_device_readings(collected_at);
