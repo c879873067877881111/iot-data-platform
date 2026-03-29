@@ -2,7 +2,7 @@
 
 IoT 電力監控數據中台：數據採集 → Airflow ETL（清洗/去重/聚合）→ Star Schema 倉儲 → Spring Boot REST API。
 
-整合真實 IoT 感測器數據（[ThingSpeak PZEM-004T](https://thingspeak.com/channels/972755)）與模擬數據，展示完整的數據工程流程。
+整合真實 IoT 設備數據（[ThingSpeak PZEM-004T](https://thingspeak.com/channels/972755)）與模擬數據，展示完整的數據工程流程。
 
 ## Architecture
 
@@ -17,32 +17,32 @@ Data Sources              Database              ETL                 API
 │  Simulator   │───▶│  fact_*      │    │  hourly agg  │    │              │
 │  (Python)    │    │              │    │  daily agg   │    │  Swagger UI  │
 │  7 sites     │    └──────────────┘    └──────────────┘    └──────┬───────┘
-│  16 devices  │                                                  │
+│  16 devices  │                                                   │
 └──────────────┘                                           jdbc:postgresql
 ```
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Data Ingestion | ThingSpeak API（真實 IoT）、Python 3.11 Simulator |
-| Database | PostgreSQL 16（Star Schema） |
-| ETL | Apache Airflow 3.0.2（LocalExecutor） |
-| API | Spring Boot 3.5、MyBatis 3、Java 17 |
-| API Docs | Swagger UI（springdoc-openapi） |
-| Infrastructure | Docker Compose（7 services） |
+| Layer          | Technology                                     |
+|----------------|------------------------------------------------|
+| Data Ingestion | ThingSpeak API（真實 IoT) + Python 3.11 Simulator |
+| Database       | PostgreSQL 16（Star Schema）                     |
+| ETL            | Apache Airflow 3.0.2（LocalExecutor）            |
+| API            | Spring Boot 3.5、MyBatis 3、Java 17              |
+| API Docs       | Swagger UI（springdoc-openapi）                  |
+| Container      | Docker Compose                     |
 
 ## Data Model（Star Schema）
 
 ```
-                    ┌───────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-dim_sites ────┐     │                   │    │                  │    │                 │
-              ├────▶│ fact_energy_readings├───▶│ fact_hourly_energy├───▶│ fact_daily_energy│
-dim_devices ──┘     │                   │    │                  │    │                 │
-                    └───────────────────┘    └──────────────────┘    └─────────────────┘
+                    ┌─────────────────────┐    ┌─────────────────────┐    ┌──────────────────┐
+dim_sites    ─┐     │                     │    │                     │    │                  │
+              ├────▶│ fact_energy_readings├───▶│ fact_hourly_energy  ├───▶│ fact_daily_energy│
+dim_devices  ─┘     │                     │    │                     │    │                  │
+                    └─────────────────────┘    └─────────────────────┘    └──────────────────┘
 ```
 
-- **Staging**：`raw_device_readings` — 原始數據，包含 quality_flag
+- **Staging**：`raw_device_readings` — raw data，包含 quality_flag
 - **Dimensions**：`dim_sites`（7 sites）、`dim_devices`（16 devices）
 - **Facts**：三層聚合（readings → hourly → daily）
 - **Metadata**：`data_quality_log` — 數據品質檢查記錄
@@ -58,7 +58,7 @@ deduplicate_raw → mark_rejected → compute_energy_delta → aggregate_hourly 
 - **Bounded Queries**：所有聚合 SQL 加上時間窗口，避免全表掃描
 - **Data Quality**：獨立 DAG 每小時檢查 6 項指標（NULL / 負值 / 電壓異常 / 未來時間戳 / 重複率 / ingestion gap）
 
-**Data Cleaning**：原始數據包含約 2% 異常資料，ETL 負責清洗與標記：
+**Data Cleaning**：raw data包含約 2% 異常資料，ETL 負責清洗與標記：
 
 | 類型 | 場景 | 處理方式 |
 |------|------|----------|
