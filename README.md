@@ -17,29 +17,29 @@ Data Sources              Database              ETL                 API
 │  Simulator   │───▶│  fact_*      │    │  hourly agg  │    │              │
 │  (Python)    │    │              │    │  daily agg   │    │  Swagger UI  │
 │  7 sites     │    └──────────────┘    └──────────────┘    └──────┬───────┘
-│  16 devices  │                                                  │
+│  16 devices  │                                                   │
 └──────────────┘                                           jdbc:postgresql
 ```
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Data Ingestion | ThingSpeak API（真實 IoT）、Python 3.11 Simulator |
-| Database | PostgreSQL 16（Star Schema） |
-| ETL | Apache Airflow 3.0.2（LocalExecutor） |
-| API | Spring Boot 3.5、MyBatis 3、Java 17 |
-| API Docs | Swagger UI（springdoc-openapi） |
-| Infrastructure | Docker Compose（7 services） |
+| Layer          | Technology                                     |
+|----------------|------------------------------------------------|
+| Data Ingestion | ThingSpeak API（真實 IoT）+ Python 3.11 Simulator |
+| Database       | PostgreSQL 16（Star Schema）                     |
+| ETL            | Apache Airflow 3.0.2（LocalExecutor）            |
+| API            | Spring Boot 3.5、MyBatis 3、Java 17              |
+| API Docs       | Swagger UI（springdoc-openapi）                  |
+| Infra          | Docker Compose（7 services）        |
 
 ## Data Model（Star Schema）
 
 ```
-                    ┌───────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-dim_sites ────┐     │                   │    │                  │    │                 │
-              ├────▶│ fact_energy_readings├───▶│ fact_hourly_energy├───▶│ fact_daily_energy│
-dim_devices ──┘     │                   │    │                  │    │                 │
-                    └───────────────────┘    └──────────────────┘    └─────────────────┘
+                    ┌─────────────────────┐    ┌─────────────────────┐    ┌──────────────────┐
+dim_sites    ─┐     │                     │    │                     │    │                  │
+              ├────▶│ fact_energy_readings├───▶│ fact_hourly_energy  ├───▶│ fact_daily_energy│
+dim_devices  ─┘     │                     │    │                     │    │                  │
+                    └─────────────────────┘    └─────────────────────┘    └──────────────────┘
 ```
 
 - **Staging**：`raw_device_readings` — 原始數據，包含 quality_flag
