@@ -16,8 +16,8 @@ Data Sources              Database              ETL                 API
 ┌──────────────┐    │  dim_*       │    │  compute Δ   │    │ GET /summary │
 │  Simulator   │───▶│  fact_*      │    │  hourly agg  │    │              │
 │  (Python)    │    │              │    │  daily agg   │    │  Swagger UI  │
-│  7 sites     │    └──────────────┘    └──────────────┘    └──────┬───────┘
-│  16 devices  │                                                   │
+│  6 sites     │    └──────────────┘    └──────────────┘    └──────┬───────┘
+│  15 devices  │                                                   │
 └──────────────┘                                           jdbc:postgresql
 ```
 
@@ -35,16 +35,31 @@ Data Sources              Database              ETL                 API
 ## Data Model（Star Schema）
 
 ```
-                    ┌─────────────────────┐    ┌─────────────────────┐    ┌──────────────────┐
-dim_sites    ─┐     │                     │    │                     │    │                  │
-              ├────▶│ fact_energy_readings├───▶│ fact_hourly_energy  ├───▶│ fact_daily_energy│
-dim_devices  ─┘     │                     │    │                     │    │                  │
-                    └─────────────────────┘    └─────────────────────┘    └──────────────────┘
+       ┌──────────────┐                              ┌──────────────┐
+       │  dim_sites   │                              │ dim_devices  │
+       └──────┬───────┘                              └──────┬───────┘
+              │ FK                                          │ FK
+              └────────────────┬────────────────────────────┘
+                               ▼
+                ┌──────────────────────────┐
+                │  fact_energy_readings    │   ← base fact（per-minute）
+                └────────────┬─────────────┘
+                             │ aggregate hourly
+                             ▼
+                ┌──────────────────────────┐
+                │   fact_hourly_energy     │   ← per-hour
+                └────────────┬─────────────┘
+                             │ aggregate daily
+                             ▼
+                ┌──────────────────────────┐
+                │   fact_daily_energy      │   ← per-day
+                └──────────────────────────┘
 ```
 
-- **Staging**：`raw_device_readings` — 原始數據，包含 quality_flag
+- **Star（上層）**：兩張 dimension 透過 FK 連到 base fact `fact_energy_readings`
+- **Aggregation chain（下層）**：base fact 預先聚合為 hourly / daily，加速分析查詢
+- **Staging**：`raw_device_readings` — 原始數據，含 quality_flag
 - **Dimensions**：`dim_sites`（7 sites）、`dim_devices`（16 devices）
-- **Facts**：三層聚合（readings → hourly → daily）
 - **Metadata**：`data_quality_log` — 數據品質檢查記錄
 
 ## ETL Pipeline
