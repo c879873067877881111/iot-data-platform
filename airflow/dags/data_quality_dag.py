@@ -51,13 +51,20 @@ CHECKS = [
         "threshold": 10,
     },
     {
-        # 電壓異常：台灣家用單相電壓約 110V、工業 220V，180~260V 是合理上下界
+        # 電壓異常：每台 device 的 voltage 規格不同（simulator 工業 220V / PZEM 家用 110V），
+        # 用 dim_devices 的 voltage_nominal + voltage_tolerance_pct 算個別合理區間，
+        # 取代過去 hardcode 的 180–260V threshold（會把 110V 設備全判為異常）。
+        # 公式：|voltage_avg - nominal| > nominal * tolerance / 100
         "check_type": "VOLTAGE_RANGE",
-        "description": "Readings with voltage outside 180-260V",
+        "description": "Readings outside per-device voltage tolerance (nominal ± tolerance%)",
         "sql": """
-            SELECT COUNT(*) FROM raw_device_readings
-            WHERE (voltage_avg < 180 OR voltage_avg > 260)
-              AND ingested_at > NOW() - INTERVAL '2 hours'
+            SELECT COUNT(*)
+            FROM raw_device_readings r
+            JOIN dim_devices d ON d.device_id = r.device_id
+            WHERE r.ingested_at > NOW() - INTERVAL '2 hours'
+              AND d.voltage_nominal IS NOT NULL
+              AND r.voltage_avg IS NOT NULL
+              AND ABS(r.voltage_avg - d.voltage_nominal) > d.voltage_nominal * d.voltage_tolerance_pct / 100
         """,
         "threshold": 5,
     },
