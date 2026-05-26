@@ -9,17 +9,24 @@
 
 WITH ranked AS (
     -- 先過濾髒資料，並標號（同一 key 的重複資料 rn = 1, 2, 3 ...）
+    -- collected_at > NOW() - INTERVAL '7 days' 必須加：
+    --   (1) 跟下方 UPDATE 的 7 天窗口對稱，避免老資料每跑一輪都被重新 ROW_NUMBER
+    --       卻永遠標不到 is_processed（無限重做 + raw 表脹大）
+    --   (2) 同時拿到 partition pruning，省掉跨所有歷史 partition 全掃 idx_raw_unprocessed
+    -- Trade-off：若 ETL 中斷超過 7 天，>7 天前的 unprocessed row 不會搬到 fact，
+    --            需手動回補（或臨時把窗口拉大重跑這支 SQL）。
     SELECT *,
            ROW_NUMBER() OVER (
                PARTITION BY site_id, device_id, collected_at  -- 同一裝置同一時間視為重複
                ORDER BY ingested_at DESC                      -- 取最晚進來的那筆
            ) AS rn
     FROM raw_device_readings
-    WHERE is_processed = FALSE       -- 只處理還沒搬過的
-      AND quality_flag != 'ANOMALY'  -- ANOMALY 由 mark_rejected.sql 處理
-      AND active_power IS NOT NULL   -- 排除斷線
-      AND active_power >= 0          -- 排除接線錯誤
-      AND collected_at <= NOW()      -- 排除時鐘漂移
+    WHERE is_processed = FALSE                            -- 只處理還沒搬過的
+      AND collected_at > NOW() - INTERVAL '7 days'        -- 跟外層 UPDATE 對稱 + partition pruning
+      AND quality_flag != 'ANOMALY'                       -- ANOMALY 由 mark_rejected.sql 處理
+      AND active_power IS NOT NULL                        -- 排除斷線
+      AND active_power >= 0                               -- 排除接線錯誤
+      AND collected_at <= NOW()                           -- 排除時鐘漂移
 ),
 clean AS (
     -- 只保留每組的第一筆（最新的那筆）

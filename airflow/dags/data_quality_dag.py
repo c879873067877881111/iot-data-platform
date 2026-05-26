@@ -1,7 +1,7 @@
 """
 Data Quality DAG（資料品質檢查）
 ================================
-每小時跑 6 項資料品質檢查，把結果寫進 data_quality_log，便於追蹤感測器健康度。
+每小時跑 7 項資料品質檢查，把結果寫進 data_quality_log，便於追蹤感測器健康度。
 
 - 排程    ：每小時整點執行（@hourly）
 - 設計理念：與 etl_pipeline 分離 —— ETL 只負責清洗，這支 DAG 負責「監控品質」
@@ -160,7 +160,7 @@ with DAG(
     tags=["quality", "iot"],
 ) as dag:
 
-    # 單一 task：跑完 6 項檢查
+    # 單一 task：跑完 7 項檢查
     PythonOperator(
         task_id="run_quality_checks",
         python_callable=run_quality_checks,
