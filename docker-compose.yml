@@ -40,10 +40,33 @@ services:
       interval: 5s
       retries: 5
 
+  mosquitto:
+    # 自 build：用 Dockerfile COPY --chmod=0700 把 passwd/acl 權限烙進 image，
+    # 避免 git 不保留 0700 → mount 進來變 644 → broker 印 world-readable warning。
+    # 改 passwd / acl / mosquitto.conf 後要 `docker compose up -d --build mosquitto`。
+    build: ./mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+    environment:
+      # healthcheck 用，傳進容器讓 CMD 能讀
+      MQTT_HEALTHCHECK_USER: ${MQTT_HEALTHCHECK_USER}
+      MQTT_HEALTHCHECK_PASSWORD: ${MQTT_HEALTHCHECK_PASSWORD}
+    healthcheck:
+      # -E 連上即斷，純測 broker 是否能 accept 連線。
+      # 啟用 auth 後 healthcheck 必須帶帳密，否則 broker 直接拒連 → 永遠 unhealthy
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t healthcheck -E -W 3 -i healthcheck-probe -u $$MQTT_HEALTHCHECK_USER -P $$MQTT_HEALTHCHECK_PASSWORD || exit 1"]
+      interval: 10s
+      retries: 5
+    restart: on-failure
+
   simulator:
     build: ./simulator
     depends_on:
       postgres:
+        condition: service_healthy
+      mosquitto:
         condition: service_healthy
     environment:
       DB_HOST: postgres
@@ -51,6 +74,29 @@ services:
       DB_NAME: ${IOT_DB_NAME}
       DB_USER: ${IOT_DB_USER}
       DB_PASSWORD: ${IOT_DB_PASSWORD}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_SIMULATOR_USER}
+      MQTT_PASSWORD: ${MQTT_SIMULATOR_PASSWORD}
+    restart: on-failure
+
+  mqtt-ingestor:
+    build: ./mqtt-ingestor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${IOT_DB_NAME}
+      DB_USER: ${IOT_DB_USER}
+      DB_PASSWORD: ${IOT_DB_PASSWORD}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_INGESTOR_USER}
+      MQTT_PASSWORD: ${MQTT_INGESTOR_PASSWORD}
     restart: on-failure
 
   airflow-init:
@@ -155,3 +201,4 @@ services:
 volumes:
   postgres_data:
   airflow_logs:
+  mosquitto_data:

@@ -1,0 +1,11 @@
+# 避免 host 跑 `uv sync` 留下的 .venv 覆蓋 image 內 `uv sync --no-dev` 建好的 prod venv
+.venv
+__pycache__
+*.pyc
+
+# Dev-only
+.pytest_cache
+tests
+
+# 雜物
+.DS_Store

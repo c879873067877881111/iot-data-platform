@@ -1,0 +1,15 @@
+# Mosquitto ACL — topic-level authorization
+# 一個帳號一個角色，最小權限：publisher 只能 publish、subscriber 只能 subscribe。
+# 帳號被竊不會擴大成「能讀也能寫」。
+
+# Simulator：只能往 telemetry topic publish
+user simulator
+topic write iot/sites/+/devices/+/telemetry
+
+# Ingestor：只能訂閱 telemetry topic，不能假冒設備發訊息
+user ingestor
+topic read iot/sites/+/devices/+/telemetry
+
+# Healthcheck：只走獨立 topic，避免污染真實 telemetry
+user healthcheck
+topic readwrite healthcheck
