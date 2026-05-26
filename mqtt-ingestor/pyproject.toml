@@ -13,7 +13,7 @@ package = false
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0,<9",
+    "pytest>=9.0.3,<10",
 ]
 
 [tool.pytest.ini_options]
