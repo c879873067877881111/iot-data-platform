@@ -1,0 +1,20 @@
+# Mosquitto password file 範本 — 實際 passwd 被 .gitignore 排除
+#
+# 第一次 clone 後 bootstrap（密碼從 .env 帶；改密碼後也用同樣指令重產）：
+#
+#   # 1. 第一個帳號用 -c 建檔（會覆寫既有檔案）
+#   docker run --rm -v $PWD/mosquitto/config:/c eclipse-mosquitto:2.0 \
+#     mosquitto_passwd -c -b /c/passwd simulator iot_sim_pass
+#
+#   # 2. 後續帳號用 -b 追加（不要再用 -c，會清檔）
+#   docker run --rm -v $PWD/mosquitto/config:/c eclipse-mosquitto:2.0 \
+#     mosquitto_passwd -b /c/passwd ingestor iot_ing_pass
+#
+#   docker run --rm -v $PWD/mosquitto/config:/c eclipse-mosquitto:2.0 \
+#     mosquitto_passwd -b /c/passwd healthcheck iot_hc_pass
+#
+# 接著 `docker compose up -d --build mosquitto`，passwd 會被 COPY 進 image
+# 並由 Dockerfile 烙進 0700 / mosquitto:mosquitto。
+#
+# Production：密碼從 secret manager 取，重生 hash 覆寫 mosquitto/config/passwd，
+# 切勿沿用此檔的 dev 密碼。

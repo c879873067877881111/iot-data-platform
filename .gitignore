@@ -15,9 +15,13 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.pytest_cache/
 
 # Env
 .env
+
+# Mosquitto secrets — bcrypt hash 對應明文密碼，等於 secret，請從 passwd.example bootstrap
+mosquitto/config/passwd
 
 # Logs
 logs/
@@ -28,3 +32,9 @@ postgres_data/
 
 # Airflow
 airflow/logs/
+
+# Local learning materials (not part of project)
+learning/
+
+# 簡報草稿，不進 repo（架構文件走 docs/architecture.md）
+docs/簡報.md

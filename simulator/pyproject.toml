@@ -1,0 +1,13 @@
+[project]
+name = "iot-simulator"
+version = "0.1.0"
+description = "IoT power meter simulator — MQTT publisher with backfill mode"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg2-binary>=2.9,<3",
+    "paho-mqtt>=2.1,<3",
+]
+
+[tool.uv]
+# application（不是 library），跳過自身打包步驟
+package = false
