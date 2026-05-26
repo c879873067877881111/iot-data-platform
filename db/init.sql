@@ -113,6 +113,12 @@ CREATE TABLE IF NOT EXISTS dim_devices_scd (
     device_name     VARCHAR(128)    NOT NULL,
     device_type     VARCHAR(32)     NOT NULL,              -- 不可變（trigger 保證）
     rated_power_kw  NUMERIC(10,2),
+    -- 電壓規格：放 dim 是因為「每台設備的合理電壓區間不同」是設備規格本身，
+    -- 不是 fact data，也不該 hardcode 在 quality_check SQL 裡。
+    -- 例：simulator 工業 220V，PZEM-004T 監測家用 110V，硬塞同 threshold 永遠 FAIL。
+    -- IEC 60038 工業/家用都規定 ±10% 為合格，這裡放 ±15% 留一點 simulator 噪音空間。
+    voltage_nominal       DECIMAL(6,2),                          -- 標稱電壓 V（meter 銘牌規格）
+    voltage_tolerance_pct DECIMAL(5,2) NOT NULL DEFAULT 15.00,   -- 容許偏差 %
     is_active       BOOLEAN         NOT NULL DEFAULT TRUE,
     effective_from  DATE            NOT NULL,
     effective_to    DATE,
@@ -200,32 +206,43 @@ FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 --       'SITE_HSC_01',            -- new_site_id（NULL = 不改）
 --       900.00,                   -- new_rated_power_kw（NULL = 不改）
 --       NULL,                     -- new_is_active（NULL = 不改）
+--       NULL,                     -- new_voltage_nominal（NULL = 不改）
+--       NULL,                     -- new_voltage_tolerance_pct（NULL = 不改）
 --       'site_migration',         -- reason
 --       'engineer_eric'           -- changed_by
 --   );
 --
--- 範例 2：只改 rated_power（site / is_active 不動）
+-- 範例 2：只改 rated_power（其他不動）
 --   SELECT apply_device_change(
 --       'DEV_HSC01_FAB', DATE '2026-07-01',
---       NULL, 2800.00, NULL,
+--       NULL, 2800.00, NULL, NULL, NULL,
 --       'spec_change', 'engineer_eric'
 --   );
 --
 -- 範例 3：停用設備
 --   SELECT apply_device_change(
 --       'DEV_KHH01_MAIN', DATE '2026-08-15',
---       NULL, NULL, FALSE,
+--       NULL, NULL, FALSE, NULL, NULL,
 --       'decommission', 'ops_team'
+--   );
+--
+-- 範例 4：把家用 110V 監測模組改成寬容度 20%（漂移嚴重）
+--   SELECT apply_device_change(
+--       'DEV_EXT_PZEM', DATE '2026-09-01',
+--       NULL, NULL, NULL, NULL, 20.00,
+--       'spec_change', 'engineer_eric'
 --   );
 
 CREATE OR REPLACE FUNCTION apply_device_change(
-    p_device_id        VARCHAR(64),
-    p_effective_date   DATE,
-    p_new_site_id      VARCHAR(32),    -- NULL = 保留舊值
-    p_new_rated_power  NUMERIC(10,2),  -- NULL = 保留舊值
-    p_new_is_active    BOOLEAN,        -- NULL = 保留舊值
-    p_change_reason    VARCHAR(64),
-    p_changed_by       VARCHAR(64)
+    p_device_id              VARCHAR(64),
+    p_effective_date         DATE,
+    p_new_site_id            VARCHAR(32),    -- NULL = 保留舊值
+    p_new_rated_power        NUMERIC(10,2),  -- NULL = 保留舊值
+    p_new_is_active          BOOLEAN,        -- NULL = 保留舊值
+    p_new_voltage_nominal    DECIMAL(6,2),   -- NULL = 保留舊值
+    p_new_voltage_tolerance  DECIMAL(5,2),   -- NULL = 保留舊值
+    p_change_reason          VARCHAR(64),
+    p_changed_by             VARCHAR(64)
 ) RETURNS VOID AS $$
 DECLARE
     v_old RECORD;
@@ -256,16 +273,19 @@ BEGIN
 
     -- b. 開新版本（COALESCE 處理 NULL = 保留舊值）
     INSERT INTO dim_devices_scd (
-        device_id, site_id, device_name, device_type, rated_power_kw, is_active,
+        device_id, site_id, device_name, device_type, rated_power_kw,
+        voltage_nominal, voltage_tolerance_pct, is_active,
         effective_from, effective_to, is_current,
         version_number, change_reason, changed_by
     ) VALUES (
         v_old.device_id,
-        COALESCE(p_new_site_id,     v_old.site_id),
+        COALESCE(p_new_site_id,            v_old.site_id),
         v_old.device_name,
         v_old.device_type,
-        COALESCE(p_new_rated_power, v_old.rated_power_kw),
-        COALESCE(p_new_is_active,   v_old.is_active),
+        COALESCE(p_new_rated_power,        v_old.rated_power_kw),
+        COALESCE(p_new_voltage_nominal,    v_old.voltage_nominal),
+        COALESCE(p_new_voltage_tolerance,  v_old.voltage_tolerance_pct),
+        COALESCE(p_new_is_active,          v_old.is_active),
         p_effective_date,
         NULL,
         TRUE,
@@ -290,7 +310,9 @@ WHERE is_current = TRUE;
 
 CREATE OR REPLACE VIEW dim_devices AS
 SELECT
-    device_id, site_id, device_name, device_type, rated_power_kw, is_active, created_at
+    device_id, site_id, device_name, device_type, rated_power_kw,
+    voltage_nominal, voltage_tolerance_pct,
+    is_active, created_at
 FROM dim_devices_scd
 WHERE is_current = TRUE;
 
@@ -422,23 +444,26 @@ INSERT INTO dim_sites_scd (
 ('SITE_KHH_02', '高雄楠梓加工區',   'factory',   '南區', '高雄市', 4000.00, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
 ('SITE_EXT_01', '外部感測站（PZEM-004T）', 'external', '外部', 'Remote', NULL, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init');
 
+-- voltage_nominal：simulator 工業 220V / PZEM 監測家用 110V
+-- voltage_tolerance_pct：預設 15.00（schema 層 DEFAULT），這裡顯式寫一次方便日後改不同 device
 INSERT INTO dim_devices_scd (
-    device_id, site_id, device_name, device_type, rated_power_kw, is_active,
-    effective_from, effective_to, is_current, version_number, change_reason, changed_by
+    device_id, site_id, device_name, device_type, rated_power_kw,
+    voltage_nominal, voltage_tolerance_pct,
+    is_active, effective_from, effective_to, is_current, version_number, change_reason, changed_by
 ) VALUES
-('DEV_TPE01_MAIN', 'SITE_TPE_01', '主電錶',       'main_meter', 2000.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TPE01_L1',   'SITE_TPE_01', '產線一電錶',   'sub_meter',   800.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TPE01_L2',   'SITE_TPE_01', '產線二電錶',   'sub_meter',   800.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TPE01_AC',   'SITE_TPE_01', '空調總錶',     'sub_meter',   400.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TPE02_MAIN', 'SITE_TPE_02', '主電錶',       'main_meter',  500.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TPE02_FL3',  'SITE_TPE_02', '3F辦公區',     'sub_meter',   200.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TPE02_SRV',  'SITE_TPE_02', '機房電錶',     'sub_meter',   150.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_HSC01_MAIN', 'SITE_HSC_01', '主電錶',       'main_meter', 5000.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_HSC01_FAB',  'SITE_HSC_01', '無塵室電錶',   'sub_meter',  2500.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_HSC01_CHL',  'SITE_HSC_01', '冰水主機電錶', 'sub_meter',  1500.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TXG01_MAIN', 'SITE_TXG_01', '主電錶',       'main_meter', 3000.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_TXG01_CNC',  'SITE_TXG_01', 'CNC加工區',    'sub_meter',  1800.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_KHH01_MAIN', 'SITE_KHH_01', '主電錶',       'main_meter', 1000.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_KHH02_MAIN', 'SITE_KHH_02', '主電錶',       'main_meter', 4000.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_KHH02_SMT',  'SITE_KHH_02', 'SMT產線電錶',  'sub_meter',  2000.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_EXT_PZEM',   'SITE_EXT_01', 'PZEM-004T 電力監測模組', 'iot_sensor', NULL, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init');
+('DEV_TPE01_MAIN', 'SITE_TPE_01', '主電錶',       'main_meter', 2000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TPE01_L1',   'SITE_TPE_01', '產線一電錶',   'sub_meter',   800.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TPE01_L2',   'SITE_TPE_01', '產線二電錶',   'sub_meter',   800.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TPE01_AC',   'SITE_TPE_01', '空調總錶',     'sub_meter',   400.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TPE02_MAIN', 'SITE_TPE_02', '主電錶',       'main_meter',  500.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TPE02_FL3',  'SITE_TPE_02', '3F辦公區',     'sub_meter',   200.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TPE02_SRV',  'SITE_TPE_02', '機房電錶',     'sub_meter',   150.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_HSC01_MAIN', 'SITE_HSC_01', '主電錶',       'main_meter', 5000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_HSC01_FAB',  'SITE_HSC_01', '無塵室電錶',   'sub_meter',  2500.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_HSC01_CHL',  'SITE_HSC_01', '冰水主機電錶', 'sub_meter',  1500.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TXG01_MAIN', 'SITE_TXG_01', '主電錶',       'main_meter', 3000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_TXG01_CNC',  'SITE_TXG_01', 'CNC加工區',    'sub_meter',  1800.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_KHH01_MAIN', 'SITE_KHH_01', '主電錶',       'main_meter', 1000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_KHH02_MAIN', 'SITE_KHH_02', '主電錶',       'main_meter', 4000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_KHH02_SMT',  'SITE_KHH_02', 'SMT產線電錶',  'sub_meter',  2000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
+('DEV_EXT_PZEM',   'SITE_EXT_01', 'PZEM-004T 電力監測模組', 'iot_sensor', NULL, 110.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init');
