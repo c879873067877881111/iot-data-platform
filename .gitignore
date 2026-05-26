@@ -10,9 +10,10 @@ target/
 .vscode/
 .DS_Store
 
-# Claude Code 本機工作目錄（todos / shell-snapshots / session 紀錄等）
-# CLAUDE.md 本身是 project context，需要進 repo，所以只 ignore 目錄
+# Claude Code 本機檔案：工作目錄（todos / shell-snapshots / session）+ project context
+# CLAUDE.md 改成本機 only — 不進 repo（先前 #14 進過 repo，已 git rm 移除 tracking）
 .claude/
+/CLAUDE.md
 
 # Python
 __pycache__/
