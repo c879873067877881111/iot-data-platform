@@ -10,6 +10,10 @@ target/
 .vscode/
 .DS_Store
 
+# Claude Code 本機工作目錄（todos / shell-snapshots / session 紀錄等）
+# CLAUDE.md 本身是 project context，需要進 repo，所以只 ignore 目錄
+.claude/
+
 # Python
 __pycache__/
 *.pyc
