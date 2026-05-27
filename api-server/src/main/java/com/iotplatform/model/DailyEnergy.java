@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class DailyEnergy {
-    private Long id;
     private String siteId;
     private String deviceId;
     private LocalDate readingDate;
@@ -17,8 +16,6 @@ public class DailyEnergy {
     private BigDecimal avgVoltage;
     private Integer readingCount;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
     public String getSiteId() { return siteId; }
     public void setSiteId(String siteId) { this.siteId = siteId; }
     public String getDeviceId() { return deviceId; }
