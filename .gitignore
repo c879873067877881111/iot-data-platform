@@ -42,4 +42,4 @@ airflow/logs/
 learning/
 
 # 簡報草稿，不進 repo（架構文件走 docs/architecture.md）
-docs/簡報.md
+docs/簡報*.md
