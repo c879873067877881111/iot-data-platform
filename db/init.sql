@@ -259,13 +259,13 @@ BEGIN
 
     IF p_effective_date <= v_old.effective_from THEN
         RAISE EXCEPTION
-            'p_effective_date (%) must be after current version''s effective_from (%)',
-            p_effective_date, v_old.effective_from;
+            'p_effective_date (%) for device_id=% must be after current version''s effective_from (%)',
+            p_effective_date, p_device_id, v_old.effective_from;
     END IF;
 
     -- a. 關閉舊版本
     UPDATE dim_devices_scd
-    SET effective_to  = p_effective_date - INTERVAL '1 day',
+    SET effective_to  = p_effective_date - 1,
         is_current    = FALSE,
         change_reason = p_change_reason,
         changed_by    = p_changed_by
@@ -344,12 +344,12 @@ BEGIN
 
     IF p_effective_date <= v_old.effective_from THEN
         RAISE EXCEPTION
-            'p_effective_date (%) must be after current version''s effective_from (%)',
-            p_effective_date, v_old.effective_from;
+            'p_effective_date (%) for site_id=% must be after current version''s effective_from (%)',
+            p_effective_date, p_site_id, v_old.effective_from;
     END IF;
 
     UPDATE dim_sites_scd
-    SET effective_to  = p_effective_date - INTERVAL '1 day',
+    SET effective_to  = p_effective_date - 1,
         is_current    = FALSE,
         change_reason = p_change_reason,
         changed_by    = p_changed_by
