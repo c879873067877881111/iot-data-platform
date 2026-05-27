@@ -116,9 +116,10 @@ CREATE TABLE IF NOT EXISTS dim_devices_scd (
     -- 電壓規格：放 dim 是因為「每台設備的合理電壓區間不同」是設備規格本身，
     -- 不是 fact data，也不該 hardcode 在 quality_check SQL 裡。
     -- 例：simulator 工業 220V，PZEM-004T 監測家用 110V，硬塞同 threshold 永遠 FAIL。
-    -- IEC 60038 工業/家用都規定 ±10% 為合格，這裡放 ±15% 留一點 simulator 噪音空間。
-    voltage_nominal       DECIMAL(6,2),                          -- 標稱電壓 V（meter 銘牌規格）
-    voltage_tolerance_pct DECIMAL(5,2) NOT NULL DEFAULT 15.00,   -- 容許偏差 %
+    -- IEC 60038 工業/家用都規定 ±10% 為合格，這裡放 ±15% 保留 measurement noise + 標稱漂移餘量。
+    -- 兩個欄位都 NOT NULL：強制新增 device 時必須填 spec，避免 quality check 靜默 skip 沒填規格的設備。
+    voltage_nominal       DECIMAL(6,2) NOT NULL CHECK (voltage_nominal > 0),  -- 標稱電壓 V（meter 銘牌規格）
+    voltage_tolerance_pct DECIMAL(5,2) NOT NULL DEFAULT 15.00 CHECK (voltage_tolerance_pct > 0),  -- 容許偏差 %
     is_active       BOOLEAN         NOT NULL DEFAULT TRUE,
     effective_from  DATE            NOT NULL,
     effective_to    DATE,
@@ -525,7 +526,8 @@ INSERT INTO dim_sites_scd (
 ('SITE_EXT_01', '外部感測站（PZEM-004T）', 'external', '外部', 'Remote', NULL, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init');
 
 -- voltage_nominal：simulator 工業 220V / PZEM 監測家用 110V
--- voltage_tolerance_pct：預設 15.00（schema 層 DEFAULT），這裡顯式寫一次方便日後改不同 device
+-- voltage_tolerance_pct：simulator 用 15%；PZEM 給 20%，因為 ThingSpeak 實測 ~120V 距離 110V+15% 上界
+-- (126.5V) 只剩 6V 餘量，未來上游漂移會偏緊，先放寬到 ±20% (88–132V)
 INSERT INTO dim_devices_scd (
     device_id, site_id, device_name, device_type, rated_power_kw,
     voltage_nominal, voltage_tolerance_pct,
@@ -546,4 +548,4 @@ INSERT INTO dim_devices_scd (
 ('DEV_KHH01_MAIN', 'SITE_KHH_01', '主電錶',       'main_meter', 1000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
 ('DEV_KHH02_MAIN', 'SITE_KHH_02', '主電錶',       'main_meter', 4000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
 ('DEV_KHH02_SMT',  'SITE_KHH_02', 'SMT產線電錶',  'sub_meter',  2000.00, 220.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init'),
-('DEV_EXT_PZEM',   'SITE_EXT_01', 'PZEM-004T 電力監測模組', 'iot_sensor', NULL, 110.00, 15.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init');
+('DEV_EXT_PZEM',   'SITE_EXT_01', 'PZEM-004T 電力監測模組', 'iot_sensor', NULL, 110.00, 20.00, TRUE, '2026-01-01', NULL, TRUE, 1, NULL, 'system_init');
