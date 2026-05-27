@@ -7,7 +7,7 @@
 
     <select id="findHourly" parameterType="com.iotplatform.dto.EnergyQueryParam"
             resultType="com.iotplatform.model.HourlyEnergy">
-        SELECT id, site_id, device_id, hour_start,
+        SELECT site_id, device_id, hour_start,
                avg_power_kw, max_power_kw, min_power_kw,
                energy_kwh, avg_pf, avg_voltage, reading_count
         FROM fact_hourly_energy
@@ -31,7 +31,7 @@
 
     <select id="findDaily" parameterType="com.iotplatform.dto.EnergyQueryParam"
             resultType="com.iotplatform.model.DailyEnergy">
-        SELECT id, site_id, device_id, reading_date,
+        SELECT site_id, device_id, reading_date,
                total_energy_kwh, peak_demand_kw,
                avg_power_kw, max_power_kw, min_power_kw,
                avg_pf, avg_voltage, reading_count

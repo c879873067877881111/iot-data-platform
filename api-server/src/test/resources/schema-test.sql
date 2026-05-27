@@ -19,11 +19,10 @@ CREATE TABLE dim_devices (
     FOREIGN KEY (site_id) REFERENCES dim_sites(site_id)
 );
 
--- H2 compatibility: AUTO_INCREMENT instead of PostgreSQL BIGSERIAL
+-- 對齊 prod schema：複合 PK (device_id, reading_date)，無 id column
 CREATE TABLE fact_daily_energy (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    site_id         VARCHAR(20) NOT NULL,
     device_id       VARCHAR(30) NOT NULL,
+    site_id         VARCHAR(20) NOT NULL,
     reading_date    DATE NOT NULL,
     total_energy_kwh DECIMAL(12,4),
     peak_demand_kw   DECIMAL(10,2),
@@ -32,5 +31,6 @@ CREATE TABLE fact_daily_energy (
     min_power_kw     DECIMAL(10,2),
     avg_pf           DECIMAL(6,4),
     avg_voltage      DECIMAL(8,2),
-    reading_count    INT
+    reading_count    INT,
+    PRIMARY KEY (device_id, reading_date)
 );
