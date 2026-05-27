@@ -1,13 +1,13 @@
 package com.iotplatform.model;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 public class HourlyEnergy {
     private Long id;
     private String siteId;
     private String deviceId;
-    private LocalDateTime hourStart;
+    private OffsetDateTime hourStart;
     private BigDecimal avgPowerKw;
     private BigDecimal maxPowerKw;
     private BigDecimal minPowerKw;
@@ -22,8 +22,8 @@ public class HourlyEnergy {
     public void setSiteId(String siteId) { this.siteId = siteId; }
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public LocalDateTime getHourStart() { return hourStart; }
-    public void setHourStart(LocalDateTime hourStart) { this.hourStart = hourStart; }
+    public OffsetDateTime getHourStart() { return hourStart; }
+    public void setHourStart(OffsetDateTime hourStart) { this.hourStart = hourStart; }
     public BigDecimal getAvgPowerKw() { return avgPowerKw; }
     public void setAvgPowerKw(BigDecimal avgPowerKw) { this.avgPowerKw = avgPowerKw; }
     public BigDecimal getMaxPowerKw() { return maxPowerKw; }

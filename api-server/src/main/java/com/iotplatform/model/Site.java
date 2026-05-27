@@ -1,7 +1,7 @@
 package com.iotplatform.model;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 public class Site {
     private String siteId;
@@ -10,7 +10,7 @@ public class Site {
     private String region;
     private String city;
     private BigDecimal capacityKw;
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     public String getSiteId() { return siteId; }
     public void setSiteId(String siteId) { this.siteId = siteId; }
@@ -24,6 +24,6 @@ public class Site {
     public void setCity(String city) { this.city = city; }
     public BigDecimal getCapacityKw() { return capacityKw; }
     public void setCapacityKw(BigDecimal capacityKw) { this.capacityKw = capacityKw; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }
