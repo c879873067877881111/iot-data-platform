@@ -55,6 +55,7 @@ CHECKS = [
         # 用 dim_devices 的 voltage_nominal + voltage_tolerance_pct 算個別合理區間，
         # 取代過去 hardcode 的 180–260V threshold（會把 110V 設備全判為異常）。
         # 公式：|voltage_avg - nominal| > nominal * tolerance / 100
+        # 注意：dim_devices.voltage_nominal NOT NULL（schema 層強制），所以這裡不用 IS NOT NULL guard
         "check_type": "VOLTAGE_RANGE",
         "description": "Readings outside per-device voltage tolerance (nominal ± tolerance%)",
         "sql": """
@@ -62,7 +63,6 @@ CHECKS = [
             FROM raw_device_readings r
             JOIN dim_devices d ON d.device_id = r.device_id
             WHERE r.ingested_at > NOW() - INTERVAL '2 hours'
-              AND d.voltage_nominal IS NOT NULL
               AND r.voltage_avg IS NOT NULL
               AND ABS(r.voltage_avg - d.voltage_nominal) > d.voltage_nominal * d.voltage_tolerance_pct / 100
         """,
