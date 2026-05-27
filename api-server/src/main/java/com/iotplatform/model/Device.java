@@ -1,7 +1,7 @@
 package com.iotplatform.model;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 public class Device {
     private String deviceId;
@@ -10,7 +10,7 @@ public class Device {
     private String deviceType;
     private BigDecimal ratedPowerKw;
     private Boolean isActive;
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
@@ -24,6 +24,6 @@ public class Device {
     public void setRatedPowerKw(BigDecimal ratedPowerKw) { this.ratedPowerKw = ratedPowerKw; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }
