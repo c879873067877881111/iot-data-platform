@@ -297,6 +297,86 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================
+-- FUNCTION: apply_site_change — 場站異動 SCD update
+-- =============================================
+-- 結構同 apply_device_change：close 舊版本 + 開新版本封成原子操作。
+-- 語意：p_new_* 參數傳 NULL = 保留舊值；非 NULL = 用新值。
+-- 限制：若真要把 region/city/capacity_kw 明確改成 NULL（極少見），請繞過 function 直接 INSERT。
+--
+-- 範例 1：SITE_TPE_01 在 2026-05-27 改名「台北南港廠區」
+--   SELECT apply_site_change(
+--       'SITE_TPE_01',            -- site_id
+--       DATE '2026-05-27',        -- effective_date
+--       '台北南港廠區',           -- new_site_name
+--       NULL, NULL, NULL, NULL,   -- type/region/city/capacity 不動
+--       'site_rename', 'ops_team'
+--   );
+--
+-- 範例 2：SITE_HSC_01 擴廠，capacity 5000 → 7500，2026-06-01 生效
+--   SELECT apply_site_change(
+--       'SITE_HSC_01', DATE '2026-06-01',
+--       NULL, NULL, NULL, NULL, 7500.00,
+--       'capacity_upgrade', 'engineer_eric'
+--   );
+
+CREATE OR REPLACE FUNCTION apply_site_change(
+    p_site_id          VARCHAR(32),
+    p_effective_date   DATE,
+    p_new_site_name    VARCHAR(128),     -- NULL = 保留舊值
+    p_new_site_type    VARCHAR(32),      -- NULL = 保留舊值
+    p_new_region       VARCHAR(64),      -- NULL = 保留舊值
+    p_new_city         VARCHAR(64),      -- NULL = 保留舊值
+    p_new_capacity_kw  NUMERIC(10,2),    -- NULL = 保留舊值
+    p_change_reason    VARCHAR(64),
+    p_changed_by       VARCHAR(64)
+) RETURNS VOID AS $$
+DECLARE
+    v_old RECORD;
+BEGIN
+    SELECT * INTO v_old
+    FROM dim_sites_scd
+    WHERE site_id = p_site_id AND is_current = TRUE
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'No current row for site_id=%', p_site_id;
+    END IF;
+
+    IF p_effective_date <= v_old.effective_from THEN
+        RAISE EXCEPTION
+            'p_effective_date (%) must be after current version''s effective_from (%)',
+            p_effective_date, v_old.effective_from;
+    END IF;
+
+    UPDATE dim_sites_scd
+    SET effective_to  = p_effective_date - INTERVAL '1 day',
+        is_current    = FALSE,
+        change_reason = p_change_reason,
+        changed_by    = p_changed_by
+    WHERE site_id = p_site_id AND is_current = TRUE;
+
+    INSERT INTO dim_sites_scd (
+        site_id, site_name, site_type, region, city, capacity_kw,
+        effective_from, effective_to, is_current,
+        version_number, change_reason, changed_by
+    ) VALUES (
+        v_old.site_id,
+        COALESCE(p_new_site_name,   v_old.site_name),
+        COALESCE(p_new_site_type,   v_old.site_type),
+        COALESCE(p_new_region,      v_old.region),
+        COALESCE(p_new_city,        v_old.city),
+        COALESCE(p_new_capacity_kw, v_old.capacity_kw),
+        p_effective_date,
+        NULL,
+        TRUE,
+        v_old.version_number + 1,
+        p_change_reason,
+        p_changed_by
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================
 -- BACKWARD-COMPAT VIEWS (look like old dim tables)
 -- =============================================
 -- 99% query 拿當前版本，view 用短名字 — ergonomic 上勝過 _current 後綴。
